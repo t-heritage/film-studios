@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Film Studios</title>
+<style>
+  :root {
+    --plum: #4E2A45; --plum-2: #6b3d5f; --lilac: #C9A3BC; --lilac-soft: #f3eaf0;
+    --ink: #1f1a1e; --muted: #6f6670; --line: #e6dfe4; --bg: #faf8f9; --card: #fff;
+    --ok: #2f7a4f; --warn: #a3542a; --err: #b3261e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  button, input, select { font: inherit; color: inherit; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 16px; }
+  header { background: var(--plum); color: #fff; }
+  header .wrap { display: flex; align-items: center; gap: 12px; min-height: 56px; }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; flex: 1; }
+  header .who { font-size: 13px; opacity: .85; }
+  header button { background: transparent; border: 1px solid rgba(255,255,255,.4); color: #fff; border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 13px; }
+
+  /* login */
+  .login { max-width: 360px; margin: 64px auto; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 24px; }
+  .login h2 { margin: 0 0 4px; font-size: 20px; }
+  .login p { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
+  .login label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  .login input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  .primary { background: var(--plum); color: #fff; border: 0; border-radius: 10px; padding: 10px 18px; font-weight: 600; cursor: pointer; }
+  .primary:hover { background: var(--plum-2); }
+  .primary:disabled { opacity: .5; cursor: default; }
+  .login .primary { width: 100%; margin-top: 18px; }
+  .error { color: var(--err); font-size: 14px; margin-top: 12px; min-height: 1em; }
+
+  /* toolbar */
+  .toolbar { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 14px 0 10px; border-bottom: 1px solid var(--line); }
+  .toolbar .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .search { flex: 1 1 220px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+  .chip[aria-pressed="true"] { background: var(--plum); border-color: var(--plum); color: #fff; }
+  .chip .n { opacity: .7; margin-left: 4px; }
+  .progress { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .bar { height: 4px; background: var(--line); border-radius: 4px; margin-top: 6px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--lilac); width: 0; transition: width .2s; }
+
+  /* list */
+  .list { list-style: none; margin: 8px 0 120px; padding: 0; }
+  .film { display: grid; grid-template-columns: 1fr minmax(180px, 240px) auto; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid transparent; border-bottom-color: var(--line); background: var(--card); }
+  .film:first-child { border-top-left-radius: 12px; border-top-right-radius: 12px; }
+  .film.changed { background: var(--lilac-soft); }
+  .film.archived .title { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(0,0,0,.25); }
+  .title { font-weight: 500; overflow-wrap: anywhere; }
+  .title .tag { display: inline-block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--plum); background: var(--lilac-soft); border: 1px solid var(--lilac); border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; text-decoration: none; }
+  .studio select, .studio input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  .studio select.empty { color: var(--muted); }
+  .other { display: flex; gap: 6px; }
+  .other input { flex: 1; min-width: 0; }
+  .other button { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 0 10px; cursor: pointer; }
+  .other button.add { background: var(--plum); color: #fff; border-color: var(--plum); }
+  .arch { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; white-space: nowrap; }
+  .arch input { width: 16px; height: 16px; accent-color: var(--plum); margin: 0; }
+  .empty-list { padding: 40px 0; text-align: center; color: var(--muted); }
+
+  /* footer */
+  .footer { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgba(0,0,0,.05); }
+  .footer .wrap { display: flex; align-items: center; gap: 12px; min-height: 64px; }
+  .footer .status { flex: 1; font-size: 14px; color: var(--muted); }
+  .footer .status.ok { color: var(--ok); }
+  .footer .status.err { color: var(--err); }
+  .footer .discard { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 14px; }
+
+  @media (max-width: 640px) {
+    .film { grid-template-columns: 1fr auto; grid-template-areas: "title arch" "studio studio"; gap: 8px; }
+    .film .title { grid-area: title; }
+    .film .studio { grid-area: studio; }
+    .film .arch { grid-area: arch; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Film studios</h1>
+    <span class="who" id="who"></span>
+    <button id="signout" hidden>Sign out</button>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<script>
+const API = "https://nwchcduhlhhppvyhxbpo.supabase.co/functions/v1/film-studios-api";
+const DEMO = new URLSearchParams(location.search).has("demo");
+const TOKEN_KEY = "film-studios-token", NAME_KEY = "film-studios-name";
+const NONE = "", OTHER = "__other__";
+
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  del(k) { try { localStorage.removeItem(k); } catch {} },
+};
+
+// films: [{id, title, studio_id, archived}] as saved.
+// studios: [{id, name}] as saved. newStudios: names typed as "Other" this session.
+// edits: film id -> {studio: "<uuid>" | "new:<name>" | "", archived: bool}
+let films = [], studios = [], newStudios = [], edits = new Map();
+let filter = "all", query = "", otherOpen = null, saving = false;
+
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const norm = (s) => s.trim().replace(/\s+/g, " ");
+
+// ------------------------------------------------------------------ api
+
+async function api(action, body = {}) {
+  if (DEMO) return demoApi(action, body);
+  const res = await fetch(API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, token: store.get(TOKEN_KEY), ...body }),
+  });
+  const data = await res.json().catch(() => ({ error: "The server didn't answer properly" }));
+  if (res.status === 401) { signOut(); throw new Error("Your sign-in has expired. Sign in again."); }
+  if (!res.ok || data.error) throw new Error(data.error || "Something went wrong");
+  return data;
+}
+
+// ------------------------------------------------------------------ login
+
+function showLogin(message = "") {
+  $("#who").textContent = "";
+  $("#signout").hidden = true;
+  $("#app").innerHTML = `
+    <form class="login" id="login">
+      <h2>Sign in</h2>
+      <p>Use your staff login, the same one as the dashboard.</p>
+      <label for="u">Username</label>
+      <input id="u" name="username" autocomplete="username" autocapitalize="none" required>
+      <label for="p">Password</label>
+      <input id="p" name="password" type="password" autocomplete="current-password" required>
+      <button class="primary" type="submit">Sign in</button>
+      <div class="error" id="login-error">${esc(message)}</div>
+    </form>`;
+  $("#u").focus();
+  $("#login").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = $("#login button");
+    btn.disabled = true; btn.textContent = "Signing in…";
+    try {
+      const { token, name } = await api("login", { username: $("#u").value, password: $("#p").value });
+      store.set(TOKEN_KEY, token); store.set(NAME_KEY, name);
+      await start();
+    } catch (err) {
+      $("#login-error").textContent = err.message;
+      btn.disabled = false; btn.textContent = "Sign in";
+    }
+  });
+}
+
+function signOut() {
+  store.del(TOKEN_KEY); store.del(NAME_KEY);
+  edits.clear(); newStudios = [];
+  showLogin();
+}
+
+// ------------------------------------------------------------------ worksheet
+
+async function start() {
+  if (!DEMO && !store.get(TOKEN_KEY)) return showLogin();
+  $("#app").innerHTML = `<div class="wrap empty-list">Loading films…</div>`;
+  try {
+    const data = await api("load");
+    films = data.films; studios = data.studios;
+  } catch (err) {
+    return store.get(TOKEN_KEY) || DEMO ? ($("#app").innerHTML = `<div class="wrap empty-list">${esc(err.message)}</div>`) : showLogin(err.message);
+  }
+  $("#who").textContent = DEMO ? "Demo (nothing is saved)" : store.get(NAME_KEY) || "";
+  $("#signout").hidden = DEMO;
+  $("#app").innerHTML = `
+    <div class="toolbar"><div class="wrap">
+      <div class="row">
+        <input class="search" id="search" type="search" placeholder="Search films" aria-label="Search films">
+        <div class="chips" id="chips"></div>
+      </div>
+      <div class="progress" id="progress"></div>
+      <div class="bar"><i id="bar"></i></div>
+    </div></div>
+    <div class="wrap"><ul class="list" id="list"></ul></div>
+    <div class="footer"><div class="wrap">
+      <div class="status" id="status"></div>
+      <button class="discard" id="discard" hidden>Discard</button>
+      <button class="primary" id="done" disabled>Done</button>
+    </div></div>`;
+  $("#search").addEventListener("input", (e) => { query = e.target.value.trim().toLowerCase(); renderList(); });
+  $("#done").addEventListener("click", save);
+  $("#discard").addEventListener("click", () => {
+    if (!confirm("Discard all unsaved changes?")) return;
+    edits.clear(); newStudios = []; otherOpen = null; render();
+  });
+  render();
+}
+
+const current = (f) => edits.get(f.id) ?? { studio: f.studio_id ?? NONE, archived: f.archived };
+const isChanged = (f) => {
+  const e = edits.get(f.id);
+  return !!e && (e.studio !== (f.studio_id ?? NONE) || e.archived !== f.archived);
+};
+
+function setEdit(f, patch) {
+  const next = { ...current(f), ...patch };
+  if (next.studio === (f.studio_id ?? NONE) && next.archived === f.archived) edits.delete(f.id);
+  else edits.set(f.id, next);
+}
+
+function counts() {
+  let none = 0, changed = 0, archived = 0;
+  for (const f of films) {
+    const c = current(f);
+    if (!c.studio && !c.archived) none++;
+    if (c.archived) archived++;
+    if (isChanged(f)) changed++;
+  }
+  return { all: films.length, none, changed, archived };
+}
+
+function visible() {
+  return films.filter((f) => {
+    const c = current(f);
+    if (query && !f.title.toLowerCase().includes(query)) return false;
+    if (filter === "none") return !c.studio && !c.archived;
+    if (filter === "changed") return isChanged(f);
+    if (filter === "archived") return c.archived;
+    return true;
+  });
+}
+
+function studioOptions(selected) {
+  const opts = [`<option value="${NONE}"${selected === NONE ? " selected" : ""}>Choose a studio…</option>`];
+  for (const s of studios) opts.push(`<option value="${s.id}"${selected === s.id ? " selected" : ""}>${esc(s.name)}</option>`);
+  for (const n of newStudios) {
+    const v = "new:" + n;
+    opts.push(`<option value="${esc(v)}"${selected === v ? " selected" : ""}>${esc(n)} (new)</option>`);
+  }
+  opts.push(`<option value="${OTHER}">Other…</option>`);
+  return opts.join("");
+}
+
+function rowHtml(f) {
+  const c = current(f);
+  const studio = otherOpen === f.id
+    ? `<div class="other">
+         <input type="text" maxlength="120" placeholder="Studio name" aria-label="New studio name for ${esc(f.title)}">
+         <button class="add" data-act="add">Add</button>
+         <button data-act="cancel" aria-label="Cancel">✕</button>
+       </div>`
+    : `<select class="${c.studio ? "" : "empty"}" aria-label="Studio for ${esc(f.title)}">${studioOptions(c.studio)}</select>`;
+  return `<li class="film${isChanged(f) ? " changed" : ""}${c.archived ? " archived" : ""}" data-id="${f.id}">
+      <div class="title">${esc(f.title)}${isChanged(f) ? `<span class="tag">Edited</span>` : ""}</div>
+      <div class="studio">${studio}</div>
+      <label class="arch"><input type="checkbox"${c.archived ? " checked" : ""}> Archive</label>
+    </li>`;
+}
+
+function render() { renderChips(); renderList(); renderFooter(); }
+
+function renderChips() {
+  const n = counts();
+  const chips = [["all", "All", n.all], ["none", "No studio", n.none], ["changed", "Edited", n.changed], ["archived", "Archived", n.archived]];
+  $("#chips").innerHTML = chips.map(([k, label, c]) =>
+    `<button class="chip" data-f="${k}" aria-pressed="${filter === k}">${label}<span class="n">${c}</span></button>`).join("");
+  const active = n.all - n.archived, done = active - n.none;
+  $("#progress").textContent = `${done} of ${active} active films have a studio`;
+  $("#bar").style.width = active ? `${(done / active) * 100}%` : "0";
+}
+
+function renderList() {
+  const rows = visible();
+  $("#list").innerHTML = rows.length ? rows.map(rowHtml).join("") : `<li class="empty-list">No films match.</li>`;
+  if (otherOpen) $(`.film[data-id="${otherOpen}"] .other input`)?.focus();
+}
+
+function renderRow(f) {
+  const li = $(`.film[data-id="${f.id}"]`);
+  if (li) li.outerHTML = rowHtml(f);
+  if (otherOpen === f.id) $(`.film[data-id="${f.id}"] .other input`)?.focus();
+}
+
+function renderFooter(msg, cls = "") {
+  const n = edits.size;
+  $("#done").disabled = saving || n === 0;
+  $("#done").textContent = saving ? "Saving…" : "Done";
+  $("#discard").hidden = saving || n === 0;
+  const status = $("#status");
+  status.className = "status " + cls;
+  status.textContent = msg ?? (n ? `${n} film${n === 1 ? "" : "s"} edited, not saved yet` : "No unsaved changes");
+}
+
+// Every select gets the new name; only this film picks it.
+function addOther(f, raw) {
+  const name = norm(raw);
+  if (!name) return;
+  const existing = studios.find((s) => s.name.toLowerCase() === name.toLowerCase());
+  let value;
+  if (existing) value = existing.id;
+  else {
+    const prior = newStudios.find((n) => n.toLowerCase() === name.toLowerCase());
+    if (!prior) newStudios.push(name);
+    value = "new:" + (prior ?? name);
+  }
+  otherOpen = null;
+  setEdit(f, { studio: value });
+  renderList(); renderChips(); renderFooter();
+}
+
+document.addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (chip) { filter = chip.dataset.f; renderChips(); renderList(); return; }
+  const btn = e.target.closest(".other button");
+  if (btn) {
+    const f = films.find((x) => x.id === btn.closest(".film").dataset.id);
+    if (btn.dataset.act === "add") addOther(f, btn.parentElement.querySelector("input").value);
+    else { otherOpen = null; renderRow(f); }
+  }
+});
+
+document.addEventListener("change", (e) => {
+  const li = e.target.closest(".film");
+  if (!li) return;
+  const f = films.find((x) => x.id === li.dataset.id);
+  if (e.target.matches("select")) {
+    if (e.target.value === OTHER) { otherOpen = f.id; renderRow(f); return; }
+    setEdit(f, { studio: e.target.value });
+  } else if (e.target.matches(".arch input")) {
+    setEdit(f, { archived: e.target.checked });
+  } else return;
+  renderRow(f); renderChips(); renderFooter();
+});
+
+document.addEventListener("keydown", (e) => {
+  const input = e.target.closest(".other input");
+  if (!input) return;
+  const f = films.find((x) => x.id === input.closest(".film").dataset.id);
+  if (e.key === "Enter") { e.preventDefault(); addOther(f, input.value); }
+  if (e.key === "Escape") { otherOpen = null; renderRow(f); }
+});
+
+async function save() {
+  if (!edits.size || saving) return;
+  const changes = [];
+  for (const f of films) {
+    if (!isChanged(f)) continue;
+    const c = edits.get(f.id), out = { id: f.id };
+    if (c.studio !== (f.studio_id ?? NONE)) {
+      if (c.studio.startsWith("new:")) out.new_studio = c.studio.slice(4);
+      else out.studio_id = c.studio || null;
+    }
+    if (c.archived !== f.archived) out.archived = c.archived;
+    changes.push(out);
+  }
+  saving = true; renderFooter("Saving…");
+  try {
+    const res = await api("save", { changes });
+    films = res.films; studios = res.studios;
+    edits.clear(); newStudios = []; otherOpen = null;
+    saving = false;
+    renderChips(); renderList();
+    const made = res.created?.length ? ` Added ${res.created.length} new studio${res.created.length === 1 ? "" : "s"}: ${res.created.join(", ")}.` : "";
+    renderFooter(`Saved ${res.saved} film${res.saved === 1 ? "" : "s"}.${made}`, "ok");
+  } catch (err) {
+    saving = false;
+    if (store.get(TOKEN_KEY) || DEMO) renderFooter(`Not saved: ${err.message}`, "err");
+  }
+}
+
+window.addEventListener("beforeunload", (e) => { if (edits.size) { e.preventDefault(); e.returnValue = ""; } });
+$("#signout").addEventListener("click", () => {
+  if (edits.size && !confirm("You have unsaved changes. Sign out anyway?")) return;
+  signOut();
+});
+
+// ------------------------------------------------------------------ demo (?demo)
+
+const demo = {
+  studios: [{ id: "11111111-1111-4111-8111-111111111111", name: "Movies Change People" }, { id: "22222222-2222-4222-8222-222222222222", name: "Roadshow" }],
+  films: ["150", "A Father's Legacy", "Believe Me", "Dirty Dancing", "Lion", "Peace By Chocolate", "Sound of Freedom", "The Castle", "The Chosen - Season One (8 episodes)", "Wish Man"]
+    .map((title, i) => ({ id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`, title, studio_id: [3, 4, 7].includes(i) ? "22222222-2222-4222-8222-222222222222" : i === 6 ? "11111111-1111-4111-8111-111111111111" : null, archived: i === 2 })),
+};
+async function demoApi(action, body) {
+  await new Promise((r) => setTimeout(r, 300));
+  if (action === "load") return structuredClone(demo);
+  if (action === "save") {
+    const created = [];
+    for (const c of body.changes) {
+      const f = demo.films.find((x) => x.id === c.id);
+      if (c.new_studio) {
+        let s = demo.studios.find((x) => x.name.toLowerCase() === c.new_studio.toLowerCase());
+        if (!s) { s = { id: crypto.randomUUID(), name: c.new_studio }; demo.studios.push(s); created.push(s.name); }
+        f.studio_id = s.id;
+      } else if ("studio_id" in c) f.studio_id = c.studio_id;
+      if ("archived" in c) f.archived = c.archived;
+    }
+    demo.studios.sort((a, b) => a.name.localeCompare(b.name));
+    return { saved: body.changes.length, created, ...structuredClone(demo) };
+  }
+  return {};
+}
+
+start();
+</script>
+</body>
+</html>
