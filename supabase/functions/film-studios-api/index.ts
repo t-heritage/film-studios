@@ -5,16 +5,17 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // Covers the Wonder Local catalogue only: films with hf_we 'we' or 'both',
 // the same set the site lists.
 // Every action is POST {action, ...}. Sign-in uses the shared staff logins
-// (public.staff_users); the browser never touches the database directly.
+// (public.staff_users), then, like the dashboard, a dashboard admin login
+// (public.dash_users); the browser never touches the database directly.
 //
 //   login {username, password}            -> {token, name}
 //   load  {token}                         -> {films, studios}
 //   save  {token, changes: [{id, studio_id?, new_studio?, archived?}]}
 //                                         -> {saved, created, films, studios}
 //
-// A token is "<staff id>.<expiry>.<hmac>", signed over the staff user's
-// password hash, so switching the login off or changing its password ends
-// every worksheet session.
+// A token is "<s|d>.<user id>.<expiry>.<hmac>" (s: staff_users, d: dash_users),
+// signed over the user's password hash, so switching the login off or changing
+// its password ends every worksheet session.
 
 const ALLOWED_ORIGINS = [/^https:\/\/t-heritage\.github\.io$/, /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/];
 const SESSION_HOURS = 12;
@@ -57,19 +58,34 @@ Deno.serve(async (req) => {
 
 // ------------------------------------------------------------------ actions
 
+// Where a login can come from: the shared staff logins, then dashboard admins.
+const ACCOUNTS = {
+  s: { table: "staff_users", admin: false },
+  d: { table: "dash_users", admin: true },
+} as const;
+type Kind = keyof typeof ACCOUNTS;
+
+async function account(kind: Kind, column: "id" | "username" | "email", value: string) {
+  const { table, admin } = ACCOUNTS[kind];
+  const { data } = await sb().from(table).select(`id, username, name, active, password_hash${admin ? ", is_admin" : ""}`)
+    .eq(column, value).maybeSingle();
+  if (!data || !data.active || !data.password_hash || (admin && !(data as any).is_admin)) return null;
+  return data as { id: string; username: string; name: string | null; password_hash: string };
+}
+
 async function login(body: { username?: string; password?: string }) {
   const username = String(body.username ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
   if (!username || !password) throw new UserError("Enter your username and password");
-  const { data } = await sb().from("staff_users")
-    .select("id, username, name, active, password_hash")
-    .eq(username.includes("@") ? "email" : "username", username).maybeSingle();
-  if (!data || !data.active || !(await verifyPassword(password, data.password_hash))) {
-    throw new UserError("That username and password don't match");
+  for (const kind of Object.keys(ACCOUNTS) as Kind[]) {
+    const user = await account(kind, username.includes("@") ? "email" : "username", username);
+    if (!user || !(await verifyPassword(password, user.password_hash))) continue;
+    await sb().from(ACCOUNTS[kind].table).update({ last_login_at: new Date().toISOString() }).eq("id", user.id);
+    const exp = Date.now() + SESSION_HOURS * 3600_000;
+    const payload = `${kind}.${user.id}.${exp}`;
+    return { token: `${payload}.${await sign(payload, user.password_hash)}`, name: user.name || user.username };
   }
-  await sb().from("staff_users").update({ last_login_at: new Date().toISOString() }).eq("id", data.id);
-  const exp = Date.now() + SESSION_HOURS * 3600_000;
-  return { token: `${data.id}.${exp}.${await sign(`${data.id}.${exp}`, data.password_hash)}`, name: data.name || data.username };
+  throw new UserError("That username and password don't match");
 }
 
 async function load() {
@@ -164,12 +180,11 @@ async function save(staff: { username: string }, raw: unknown) {
 // ------------------------------------------------------------------ auth
 
 async function staffFromToken(token: unknown): Promise<{ id: string; username: string }> {
-  const [id, exp, sig] = typeof token === "string" ? token.split(".") : [];
-  if (!id || !UUID.test(id) || !exp || !sig || Number(exp) < Date.now()) throw new UserError("Unauthorized");
-  const { data } = await sb().from("staff_users").select("id, username, active, password_hash").eq("id", id).maybeSingle();
-  if (!data || !data.active || !data.password_hash) throw new UserError("Unauthorized");
-  if (!timingSafeEqual(sig, await sign(`${id}.${exp}`, data.password_hash))) throw new UserError("Unauthorized");
-  return { id: data.id, username: data.username };
+  const [kind, id, exp, sig] = typeof token === "string" ? token.split(".") : [];
+  if (!Object.hasOwn(ACCOUNTS, kind ?? "") || !id || !UUID.test(id) || !exp || !sig || Number(exp) < Date.now()) throw new UserError("Unauthorized");
+  const user = await account(kind as Kind, "id", id);
+  if (!user || !timingSafeEqual(sig, await sign(`${kind}.${id}.${exp}`, user.password_hash))) throw new UserError("Unauthorized");
+  return { id: user.id, username: user.username };
 }
 
 async function sign(payload: string, passwordHash: string): Promise<string> {
