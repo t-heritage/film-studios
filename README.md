@@ -1,6 +1,6 @@
 # Film studios worksheet
 
-One static page (`index.html`, served by GitHub Pages) for checking which studio licenses each film, and archiving films.
+One static page (`index.html`, served by GitHub Pages) for checking which studio licenses each Wonder Local film (`films.hf_we` is `we` or `both`), and archiving films.
 Sign in with your staff login (the same one as the dashboard).
 
 - Each film has a studio dropdown. "Other…" adds a new studio name, which every other film can then pick.

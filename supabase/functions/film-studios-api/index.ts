@@ -2,6 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 // Film studios worksheet API (t-heritage/film-studios on GitHub Pages).
+// Covers the Wonder Local catalogue only: films with hf_we 'we' or 'both',
+// the same set the site lists.
 // Every action is POST {action, ...}. Sign-in uses the shared staff logins
 // (public.staff_users); the browser never touches the database directly.
 //
@@ -17,6 +19,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 const ALLOWED_ORIGINS = [/^https:\/\/t-heritage\.github\.io$/, /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/];
 const SESSION_HOURS = 12;
 const MAX_STUDIO_NAME = 120;
+const CATALOGUE = ["we", "both"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const sb = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -72,7 +75,7 @@ async function login(body: { username?: string; password?: string }) {
 async function load() {
   const supabase = sb();
   const [films, studios] = await Promise.all([
-    supabase.from("films").select("id, title, studio_id, archived_at").order("title"),
+    supabase.from("films").select("id, title, studio_id, archived_at").in("hf_we", CATALOGUE).order("title"),
     supabase.from("studios").select("id, name").eq("is_test", false).order("name"),
   ]);
   if (films.error || studios.error) throw new Error(films.error?.message ?? studios.error?.message);
@@ -94,8 +97,14 @@ async function save(staff: { username: string }, raw: unknown) {
   const studioIds = new Set(studioRows.map((s) => s.id));
   const byName = new Map(studioRows.map((s) => [s.name.trim().toLowerCase(), s.id]));
 
+  const ids = raw.map((c: any) => c?.id).filter((id: unknown) => typeof id === "string" && UUID.test(id));
+  const { data: allowed, error: fErr } = await supabase.from("films").select("id").in("id", ids).in("hf_we", CATALOGUE);
+  if (fErr) throw new Error(fErr.message);
+  const filmIds = new Set(allowed.map((f) => f.id));
+
   const changes: Change[] = raw.map((c: any) => {
     if (!c || typeof c.id !== "string" || !UUID.test(c.id)) throw new UserError("A change is missing its film");
+    if (!filmIds.has(c.id)) throw new UserError("A film isn't in the Wonder Local catalogue. Reload and try again.");
     const out: Change = { id: c.id };
     if (typeof c.new_studio === "string") {
       const name = c.new_studio.trim().replace(/\s+/g, " ");
